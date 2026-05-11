@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter analyze *)",
+      "Bash(flutter build *)",
+      "Bash(flutter pub *)",
+      "Bash(taskkill /F /IM nha_sach_thao_nguyen.exe)",
+      "PowerShell(Stop-Process -Name \"nha_sach_thao_nguyen\" -Force -ErrorAction SilentlyContinue)",
+      "WebFetch(domain:pub.dev)",
+      "Bash(Get-ChildItem -Path \"e:\\\\dev\\\\flutter_2hips_pos\\\\lib\" -Recurse -Directory)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(flutter clean *)"
+    ]
+  }
+}

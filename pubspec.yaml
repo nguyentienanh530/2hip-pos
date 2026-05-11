@@ -1,0 +1,86 @@
+name: nha_sach_thao_nguyen
+description: Phần mềm Quản lý và Bán hàng - Nhà Sách Thảo Nguyên
+
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # State management
+  provider: ^6.1.1
+  
+  # Database local
+  sqflite: ^2.3.2
+  sqflite_common_ffi: ^2.3.2+1
+  path: ^1.9.0
+  
+  # Excel import
+  excel: ^4.0.2
+  archive: ^3.6.1
+  xml: ^6.0.0
+  
+  # File picker
+  file_picker: ^8.0.0+1
+  
+  # UI components
+  data_table_2: ^2.5.13
+  flutter_slidable: ^3.1.0
+  badges: ^3.1.2
+  fl_chart: ^0.69.0
+  
+  # Utilities
+  intl: ^0.19.0
+  uuid: ^4.3.3
+  shared_preferences: ^2.2.2
+  
+  # Icons
+  flutter_svg: ^2.0.10+1
+
+  # Crypto for password hashing
+  crypto: ^3.0.3
+
+  # Printing
+  pdf: ^3.11.1
+  printing: ^5.13.2
+
+
+  
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  flutter_launcher_icons: ^0.14.4
+  rename: ^3.0.2
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/data/products.json
+    - assets/icon/icon.png
+
+  
+
+
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  web:
+    generate: true
+  windows:
+    generate: true
+  macos:
+    generate: true
+
+  image_path: "assets/icon/icon.png"
+  
+  
+
+
+
