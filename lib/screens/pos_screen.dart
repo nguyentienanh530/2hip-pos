@@ -778,6 +778,19 @@ class _PosScreenState extends State<PosScreen> {
 
   Widget _buildRightPanel() {
     final s = _current;
+    final auth = context.watch<AuthProvider>();
+    final orderProv = context.watch<OrderProvider>();
+
+    final username = auth.currentUser?.username ?? '';
+    final displayName = auth.currentUser?.displayName ?? username;
+
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final myOrders = orderProv.orders
+        .where((o) => o.nguoiTao == username && !o.ngayTao.isBefore(todayStart))
+        .toList();
+    final myRevToday = myOrders.fold(0, (sum, o) => sum + o.tongTien);
+
     return Container(
       width: 360,
       decoration: const BoxDecoration(
@@ -786,7 +799,8 @@ class _PosScreenState extends State<PosScreen> {
       ),
       child: Column(
         children: [
-          _buildRightHeader(s),
+          _buildRightHeader(displayName),
+          _buildUserRevenueBar(myOrders.length, myRevToday),
           _buildCustomerRow(s),
           const Divider(height: 1),
           Expanded(child: _buildCheckoutBody(s)),
@@ -796,36 +810,58 @@ class _PosScreenState extends State<PosScreen> {
     );
   }
 
-  Widget _buildRightHeader(_Session s) {
+  Widget _buildRightHeader(String userName) {
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
       color: AppColors.cardAlt,
       child: Row(
         children: [
-          const Icon(
-            Icons.store_outlined,
-            size: 15,
-            color: AppColors.textMuted,
-          ),
+          const Icon(Icons.account_circle_outlined, size: 15, color: AppColors.textMuted),
           const SizedBox(width: 6),
-          const Text(
-            'admin',
-            style: TextStyle(
+          Text(
+            userName.isEmpty ? 'Nhân viên' : userName,
+            style: const TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w500,
               color: AppColors.textSecondary,
             ),
           ),
           const Spacer(),
-          const Icon(
-            Icons.access_time_outlined,
-            size: 13,
-            color: AppColors.textMuted,
-          ),
+          const Icon(Icons.access_time_outlined, size: 13, color: AppColors.textMuted),
           const SizedBox(width: 4),
           Text(
             DateFormat('HH:mm  dd/MM/yyyy').format(_now),
             style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUserRevenueBar(int orderCount, int revenue) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+      decoration: const BoxDecoration(
+        color: AppColors.cardAlt,
+        border: Border(
+          top: BorderSide(color: AppColors.border),
+          bottom: BorderSide(color: AppColors.border),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.today_outlined, size: 13, color: AppColors.textMuted),
+          const SizedBox(width: 6),
+          const Text('Hôm nay:', style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
+          const SizedBox(width: 8),
+          _PosStatChip(
+            label: '$orderCount đơn',
+            color: AppColors.cyan,
+          ),
+          const SizedBox(width: 8),
+          _PosStatChip(
+            label: Utils.formatCurrency(revenue),
+            color: AppColors.success,
           ),
         ],
       ),
@@ -2133,6 +2169,29 @@ class _InlineIntFieldState extends State<_InlineIntField> {
           extentOffset: _ctrl.text.length,
         ),
       );
+}
+
+// ── POS stat chip ─────────────────────────────────────────────────────────────
+
+class _PosStatChip extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _PosStatChip({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: .35)),
+      ),
+      child: Text(label,
+          style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
+    );
+  }
 }
 
 // ── Add Customer Dialog ───────────────────────────────────────────────────────

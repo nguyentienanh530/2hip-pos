@@ -9,7 +9,9 @@
       "WebFetch(domain:pub.dev)",
       "Bash(Get-ChildItem -Path \"e:\\\\dev\\\\flutter_2hips_pos\\\\lib\" -Recurse -Directory)",
       "Bash(Select-Object -ExpandProperty FullName)",
-      "Bash(flutter clean *)"
+      "Bash(flutter clean *)",
+      "Bash(Get-ChildItem -Path \"d:\\\\CODE\\\\2hip-pos\" -Recurse -Directory)",
+      "Bash(grep -E \"\\\\.dart$\")"
     ]
   }
 }

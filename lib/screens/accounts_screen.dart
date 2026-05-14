@@ -9,6 +9,8 @@ import '../enums/user_role.dart';
 import '../enums/permission.dart';
 import '../theme/app_theme.dart';
 import '../widgets/widgets.dart';
+import '../services/database_service.dart';
+import '../utils.dart';
 
 // ─── Status filter enum ───────────────────────────────────────────────────────
 
@@ -133,6 +135,12 @@ class _AccountsScreenState extends State<AccountsScreen> {
             ],
           ),
           const Spacer(),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.bar_chart_outlined, size: 18),
+            label: const Text('Báo cáo doanh thu'),
+            onPressed: () => _openRevenueReport(context),
+          ),
+          const SizedBox(width: 12),
           ElevatedButton.icon(
             icon: const Icon(Icons.person_add),
             label: const Text('Thêm nhân viên'),
@@ -267,6 +275,13 @@ class _AccountsScreenState extends State<AccountsScreen> {
   }
 
   // ── Actions ──────────────────────────────────────────────────────────────────
+
+  void _openRevenueReport(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => const RevenueByAccountDialog(),
+    );
+  }
 
   void _openForm(BuildContext context, {User? existing}) {
     showDialog(
@@ -1540,6 +1555,336 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
       setState(() => _isSubmitting = false);
       showAppError(context, error);
     }
+  }
+}
+
+// ─── Radio dot ────────────────────────────────────────────────────────────────
+
+// ─── Revenue By Account Dialog ────────────────────────────────────────────────
+
+enum _ReportPeriod { today, thisWeek, thisMonth, lastMonth, custom }
+
+class RevenueByAccountDialog extends StatefulWidget {
+  const RevenueByAccountDialog({super.key});
+
+  @override
+  State<RevenueByAccountDialog> createState() => _RevenueByAccountDialogState();
+}
+
+class _RevenueByAccountDialogState extends State<RevenueByAccountDialog> {
+  _ReportPeriod _period = _ReportPeriod.thisMonth;
+  late DateTime _from;
+  late DateTime _to;
+  List<Map<String, dynamic>> _data = [];
+  bool _loading = false;
+
+  static const _periodLabels = {
+    _ReportPeriod.today: 'Hôm nay',
+    _ReportPeriod.thisWeek: 'Tuần này',
+    _ReportPeriod.thisMonth: 'Tháng này',
+    _ReportPeriod.lastMonth: 'Tháng trước',
+    _ReportPeriod.custom: 'Tùy chỉnh',
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _applyPeriod(_period, init: true);
+  }
+
+  void _applyPeriod(_ReportPeriod p, {bool init = false}) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    DateTime from, to;
+    switch (p) {
+      case _ReportPeriod.today:
+        from = to = today;
+      case _ReportPeriod.thisWeek:
+        from = today.subtract(Duration(days: today.weekday - 1));
+        to = today;
+      case _ReportPeriod.thisMonth:
+        from = DateTime(now.year, now.month, 1);
+        to = today;
+      case _ReportPeriod.lastMonth:
+        final y = now.month == 1 ? now.year - 1 : now.year;
+        final m = now.month == 1 ? 12 : now.month - 1;
+        from = DateTime(y, m, 1);
+        to = DateTime(now.year, now.month, 1).subtract(const Duration(days: 1));
+      case _ReportPeriod.custom:
+        if (init) {
+          from = DateTime(now.year, now.month, 1);
+          to = today;
+        } else {
+          return;
+        }
+    }
+    if (init) {
+      _period = p;
+      _from = from;
+      _to = to;
+      _loadData();
+    } else {
+      setState(() {
+        _period = p;
+        _from = from;
+        _to = to;
+      });
+      _loadData();
+    }
+  }
+
+  Future<void> _loadData() async {
+    setState(() => _loading = true);
+    final data = await DatabaseService().getRevenueByAccount(_from, _to);
+    if (mounted) setState(() { _data = data; _loading = false; });
+  }
+
+  Future<void> _pickDate(bool isFrom) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: isFrom ? _from : _to,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+    );
+    if (picked == null) return;
+    setState(() {
+      if (isFrom) {
+        _from = picked;
+        if (_from.isAfter(_to)) _to = _from;
+      } else {
+        _to = picked;
+        if (_to.isBefore(_from)) _from = _to;
+      }
+      _period = _ReportPeriod.custom;
+    });
+    _loadData();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fmt = DateFormat('dd/MM/yyyy');
+    final totalRev = _data.fold(0, (s, r) => s + (r['doanhThu'] as int));
+    final totalProfit = _data.fold(0, (s, r) => s + (r['loiNhuan'] as int));
+    final totalOrders = _data.fold(0, (s, r) => s + (r['soDon'] as int));
+    final totalDiscount = _data.fold(0, (s, r) => s + (r['giamGia'] as int));
+
+    return Dialog(
+      backgroundColor: AppColors.card,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: AppColors.border),
+      ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 800, maxHeight: 700),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 20, 16, 0),
+              child: Row(children: [
+                Icon(Icons.bar_chart, color: context.primary, size: 24),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Báo cáo doanh thu theo tài khoản',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                    Text('Thống kê doanh thu của từng nhân viên theo khoảng thời gian',
+                        style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                  ]),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: AppColors.textSecondary),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ]),
+            ),
+            const SizedBox(height: 16),
+            // Period chips
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Wrap(
+                spacing: 8,
+                children: _ReportPeriod.values.map((p) {
+                  final selected = _period == p;
+                  return ChoiceChip(
+                    label: Text(_periodLabels[p]!),
+                    selected: selected,
+                    selectedColor: context.primary.withValues(alpha: .2),
+                    backgroundColor: AppColors.cardAlt,
+                    labelStyle: TextStyle(
+                      color: selected ? context.primary : AppColors.textSecondary,
+                      fontSize: 13,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                    side: BorderSide(
+                      color: selected ? context.primary.withValues(alpha: .5) : AppColors.border,
+                    ),
+                    onSelected: (_) {
+                      if (p == _ReportPeriod.custom) {
+                        setState(() => _period = p);
+                      } else {
+                        _applyPeriod(p);
+                      }
+                    },
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Date pickers
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Row(children: [
+                const Text('Từ:', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                const SizedBox(width: 8),
+                _DateButton(date: _from, onTap: () => _pickDate(true)),
+                const SizedBox(width: 12),
+                const Text('Đến:', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                const SizedBox(width: 8),
+                _DateButton(date: _to, onTap: () => _pickDate(false)),
+                const SizedBox(width: 12),
+                if (_period == _ReportPeriod.custom)
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.search, size: 16),
+                    label: const Text('Xem'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      textStyle: const TextStyle(fontSize: 13),
+                    ),
+                    onPressed: _loadData,
+                  ),
+                const Spacer(),
+                Text(
+                  '${fmt.format(_from)} – ${fmt.format(_to)}',
+                  style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+                ),
+              ]),
+            ),
+            const SizedBox(height: 16),
+            const Divider(height: 1, color: AppColors.border),
+            // Table header
+            Container(
+              color: AppColors.cardAlt,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+              child: const Row(children: [
+                Expanded(flex: 3, child: Text('Nhân viên', style: _hStyle)),
+                Expanded(flex: 2, child: Text('Số đơn', style: _hStyle, textAlign: TextAlign.center)),
+                Expanded(flex: 3, child: Text('Doanh thu', style: _hStyle, textAlign: TextAlign.right)),
+                Expanded(flex: 3, child: Text('Lợi nhuận', style: _hStyle, textAlign: TextAlign.right)),
+                Expanded(flex: 3, child: Text('Giảm giá', style: _hStyle, textAlign: TextAlign.right)),
+              ]),
+            ),
+            const Divider(height: 1, color: AppColors.border),
+            // Body
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _data.isEmpty
+                      ? const Center(
+                          child: Text('Không có dữ liệu trong khoảng thời gian này',
+                              style: TextStyle(color: AppColors.textMuted)),
+                        )
+                      : ListView.separated(
+                          itemCount: _data.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1, color: AppColors.border),
+                          itemBuilder: (_, i) {
+                            final r = _data[i];
+                            final name = (r['nguoiTao'] as String).isEmpty ? '(Không rõ)' : r['nguoiTao'] as String;
+                            final profit = r['loiNhuan'] as int;
+                            final isProfit = profit >= 0;
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                              child: Row(children: [
+                                Expanded(flex: 3, child: Row(children: [
+                                  CircleAvatar(
+                                    radius: 16,
+                                    backgroundColor: context.primary.withValues(alpha: .15),
+                                    child: Text(name.characters.first.toUpperCase(),
+                                        style: TextStyle(color: context.primary, fontSize: 13, fontWeight: FontWeight.bold)),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text(name, style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w500)),
+                                ])),
+                                Expanded(flex: 2, child: Text('${r['soDon']}',
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 14))),
+                                Expanded(flex: 3, child: Text(Utils.formatCurrency(r['doanhThu'] as int),
+                                    textAlign: TextAlign.right,
+                                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600))),
+                                Expanded(flex: 3, child: Text(Utils.formatCurrency(profit),
+                                    textAlign: TextAlign.right,
+                                    style: TextStyle(
+                                        color: isProfit ? AppColors.success : AppColors.danger,
+                                        fontSize: 14, fontWeight: FontWeight.w600))),
+                                Expanded(flex: 3, child: Text(
+                                    (r['giamGia'] as int) > 0 ? Utils.formatCurrency(r['giamGia'] as int) : '—',
+                                    textAlign: TextAlign.right,
+                                    style: const TextStyle(color: AppColors.warning, fontSize: 14))),
+                              ]),
+                            );
+                          },
+                        ),
+            ),
+            // Summary row
+            if (_data.isNotEmpty) ...[
+              const Divider(height: 1, color: AppColors.border),
+              Container(
+                color: AppColors.cardAlt,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                child: Row(children: [
+                  Expanded(flex: 3, child: Text('Tổng cộng ($totalOrders đơn)',
+                      style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 14))),
+                  const Expanded(flex: 2, child: SizedBox()),
+                  Expanded(flex: 3, child: Text(Utils.formatCurrency(totalRev),
+                      textAlign: TextAlign.right,
+                      style: TextStyle(color: context.primary, fontWeight: FontWeight.bold, fontSize: 14))),
+                  Expanded(flex: 3, child: Text(Utils.formatCurrency(totalProfit),
+                      textAlign: TextAlign.right,
+                      style: TextStyle(
+                          color: totalProfit >= 0 ? AppColors.success : AppColors.danger,
+                          fontWeight: FontWeight.bold, fontSize: 14))),
+                  Expanded(flex: 3, child: Text(
+                      totalDiscount > 0 ? Utils.formatCurrency(totalDiscount) : '—',
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(color: AppColors.warning, fontWeight: FontWeight.bold, fontSize: 14))),
+                ]),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+const _hStyle = TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary);
+
+class _DateButton extends StatelessWidget {
+  final DateTime date;
+  final VoidCallback onTap;
+  const _DateButton({required this.date, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: AppColors.inputFill,
+          border: Border.all(color: AppColors.border),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.calendar_today_outlined, size: 14, color: AppColors.textSecondary),
+          const SizedBox(width: 6),
+          Text(DateFormat('dd/MM/yyyy').format(date),
+              style: const TextStyle(color: AppColors.textPrimary, fontSize: 13)),
+        ]),
+      ),
+    );
   }
 }
 

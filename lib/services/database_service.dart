@@ -425,6 +425,44 @@ class DatabaseService {
     };
   }
 
+  Future<List<Map<String, dynamic>>> getRevenueByAccount(
+      DateTime from, DateTime to) async {
+    final db = await database;
+    String pad(int n) => n.toString().padLeft(2, '0');
+    final f = '${from.year}-${pad(from.month)}-${pad(from.day)}';
+    // Use exclusive upper bound with the next day to handle ISO timestamps (T separator)
+    final toNext = to.add(const Duration(days: 1));
+    final tExcl = '${toNext.year}-${pad(toNext.month)}-${pad(toNext.day)}';
+
+    final rows = await db.rawQuery('''
+      SELECT
+        COALESCE(nguoi_tao, '') AS nguoi_tao,
+        COUNT(*) AS so_don,
+        COALESCE(SUM(tong_tien), 0) AS doanh_thu,
+        COALESCE(SUM(tong_von), 0) AS tong_von,
+        COALESCE(SUM(giam_gia), 0) AS giam_gia
+      FROM orders
+      WHERE trang_thai = 'hoan_thanh'
+        AND ngay_tao >= ?
+        AND ngay_tao < ?
+      GROUP BY nguoi_tao
+      ORDER BY doanh_thu DESC
+    ''', [f, tExcl]);
+
+    return rows.map((r) {
+      final rev = (r['doanh_thu'] as num?)?.toInt() ?? 0;
+      final von = (r['tong_von'] as num?)?.toInt() ?? 0;
+      return {
+        'nguoiTao': (r['nguoi_tao'] as String?) ?? '',
+        'soDon': (r['so_don'] as num?)?.toInt() ?? 0,
+        'doanhThu': rev,
+        'tongVon': von,
+        'loiNhuan': rev - von,
+        'giamGia': (r['giam_gia'] as num?)?.toInt() ?? 0,
+      };
+    }).toList();
+  }
+
   // ========== USERS ==========
 
   Future<void> insertUser(User user) async {
